@@ -9,28 +9,41 @@
 #import "FISTableViewController.h"
 #import "Message.h"
 
-@interface FISTableViewController ()
+@interface FISTableViewController () <NSFetchedResultsControllerDelegate>
+
+@property (strong, nonatomic) NSFetchedResultsController *fetchRC;
 
 @end
 
 @implementation FISTableViewController
 
-- (id)initWithStyle:(UITableViewStyle)style
-{
-    self = [super initWithStyle:style];
-    if (self) {
-        // Custom initialization
-    }
-    return self;
-}
-
-
+//- (id)initWithStyle:(UITableViewStyle)style
+//{
+//    self = [super initWithStyle:style];
+//    if (self) {
+//        // Custom initialization
+//    }
+//    return self;
+//}
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+    self.tableView.accessibilityLabel = @"TableView";
+    self.tableView.accessibilityIdentifier = @"TableView";
     
     self.store = [FISDataStore sharedDataStore];
+    
+    NSFetchRequest *messageFetch = [[NSFetchRequest alloc] initWithEntityName:@"Message"];
+    NSSortDescriptor *sortDescriptor = [NSSortDescriptor sortDescriptorWithKey:@"content" ascending:YES];
+    messageFetch.sortDescriptors = @[sortDescriptor];
+    
+    self.fetchRC = [[NSFetchedResultsController alloc] initWithFetchRequest:messageFetch
+                                                       managedObjectContext:self.store.managedObjectContext
+                                                         sectionNameKeyPath:nil
+                                                                  cacheName:nil];
+    self.fetchRC.delegate = self;
+    [self.fetchRC performFetch:nil];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -52,27 +65,33 @@
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
 {
     // Return the number of sections.
-    return 1;
+    return self.fetchRC.sections.count;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
     // Return the number of rows in the section.
-    return [self.store.messages count];
+    if (self.fetchRC.sections.count > 0) {
+        id <NSFetchedResultsSectionInfo> sectionInfo = self.fetchRC.sections[section];
+        return [sectionInfo numberOfObjects];
+    }
+    return 0;
 }
 
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"basiccell" forIndexPath:indexPath];
-    
-    Message *eachMessage = self.store.messages[indexPath.row];
-    
+    Message *eachMessage = [self.fetchRC objectAtIndexPath:indexPath];
     cell.textLabel.text = eachMessage.content;
-    
-    // Configure the cell...
-    
     return cell;
+}
+
+- (IBAction)addMessageBarButtonTapped:(id)sender
+{
+    Message *newMessage = [NSEntityDescription insertNewObjectForEntityForName:@"Message"
+                                                        inManagedObjectContext:self.store.managedObjectContext];
+    newMessage.content = [NSDate date].description;
 }
 
 #pragma mark - NSFetchedResultsControllerDelegate methods
@@ -101,10 +120,10 @@
                              withRowAnimation:UITableViewRowAnimationFade];
             break;
 
-        case NSFetchedResultsChangeUpdate:
-            [tableView reloadRowsAtIndexPaths:@[indexPath]
-                             withRowAnimation:UITableViewRowAnimationAutomatic];
-            break;
+//        case NSFetchedResultsChangeUpdate:
+//            [tableView reloadRowsAtIndexPaths:@[indexPath]
+//                             withRowAnimation:UITableViewRowAnimationAutomatic];
+//            break;
         case NSFetchedResultsChangeMove:
             [tableView deleteRowsAtIndexPaths:[NSArray
                                                arrayWithObject:indexPath]
@@ -131,6 +150,9 @@
         case NSFetchedResultsChangeDelete:
             [self.tableView deleteSections:[NSIndexSet indexSetWithIndex:sectionIndex]
                           withRowAnimation:UITableViewRowAnimationFade];
+            break;
+        
+        default:
             break;
     }
 }
